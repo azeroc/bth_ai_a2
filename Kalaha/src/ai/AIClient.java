@@ -24,6 +24,11 @@ public class AIClient implements Runnable
     private Socket socket;
     private boolean running;
     private boolean connected;
+    
+    // Constants for MiniMax
+    static final int LOSS_BIAS = -1000;
+    static final int WIN_BIAS = +1000;
+    static final int TIME_LIMIT_MS = 5000;
     	
     /**
      * Creates a new client.
@@ -212,13 +217,182 @@ public class AIClient implements Runnable
      */
     public int getMove(GameState currentBoard)
     {
-        int myMove = getRandom();
+        int myMove = iddfsMiniMaxMove(currentBoard);
         return myMove;
     }
     
-    public int iddfsMiniMax(GameState state)
+    public int iddfsMiniMaxMove(GameState state)
     {
-        return 0;
+        int maxDepthIter = 0;
+        int chosenMove = 1;
+        int chosenMoveScoreDiff = 0;
+        long deadline = System.currentTimeMillis() + TIME_LIMIT_MS;
+        
+        while(true) { // Iterate max-depth from 1, 2, 3, ..., N
+            maxDepthIter++;
+            
+            // Evaluate choices through recursive miniMaxAlphaBeta
+            int[] result = miniMaxAlphaBeta(state, maxDepthIter, 
+                        Integer.MIN_VALUE, Integer.MAX_VALUE, true, deadline);
+            
+            int resultMove = result[0];
+            int resultScore = result[1];
+            int timeBreak = result[2];
+            
+            // If we encounter time-break in this max-depth iter, 
+            // then we will use previous max-depth iteration results
+            if (timeBreak == 1) {
+                break;
+            }
+            
+            chosenMove = resultMove;
+            chosenMoveScoreDiff = resultScore;
+            
+            // Check for winning/losing to avoid max-depth iteration spam
+            if (chosenMoveScoreDiff > WIN_BIAS || chosenMoveScoreDiff < LOSS_BIAS) {
+                break;
+            }
+        }
+        
+        addText("P" + this.player + "> MOVE: " + chosenMove + ", IDDFS DEPTH: " 
+                + maxDepthIter + ", SCORE DIFF: " + chosenMoveScoreDiff);
+        return chosenMove;
+    }
+    
+    public int[] miniMaxAlphaBeta(GameState state, int remainingDepth, int alpha, int beta, boolean isMax, long deadline)
+    {
+        long currentTime = System.currentTimeMillis();
+        
+        // Initialize return result
+        // For Min/Max node:
+        // [0]: Chosen move for Min/Max
+        // [1]: Score for chosen move
+        // [2]: Flag for time break (0 - no time break happened, 1 - time break happened)
+        // For Leaf node (nodes at max depth, e.g. remainingDepth == 0):
+        // [0]: -1
+        // [1]: Game score difference
+        // [2]: Flag for time break (0 - no time break happened, 1 - time break happened)
+        int[] result = new int[3];
+        result[0] = -1;
+        result[1] = 0;
+        result[2] = 0;
+        
+        // Time-break condition
+        if (currentTime > deadline) {
+            result[2] = 1; // Turn on time-break bit
+            return result;
+        }
+        
+        // End-game condition
+        if (state.gameEnded()) {
+            int endScoreDiff = evalGameScore(state);
+            
+            if (endScoreDiff < 0) { // AI looses (bias away from this)
+                result[0] = -1;
+                result[1] = endScoreDiff + LOSS_BIAS;
+                return result;
+            } else if (endScoreDiff > 0) { // AI wins (bias towards this)
+                result[0] = -1;
+                result[1] = endScoreDiff + WIN_BIAS;
+                return result;
+            } else { // Game draw (no bias added), diff always 0
+                return result;
+            }
+        }
+        
+        // Remaining depth condition (we reached end of depth, so this is a leaf node)
+        // Leaf nodes at the bottom simply return their score, which will be propogated upwards
+        if (remainingDepth == 0) {
+            result[0] = -1;
+            result[1] = evalGameScore(state);
+            return result;
+        }
+        
+        // Current score & Current move
+        int currentMove = -1;
+        int currentScore = 0;
+        
+        if (isMax) {
+            currentScore = Integer.MIN_VALUE;
+        } else {
+            currentScore = Integer.MAX_VALUE;
+        }
+
+        // Begin DFS loop for visiting next move nodes
+        for (int i = 1; i < 7; i++) {
+            // Skip child node if move to it isn't legal
+            if (!state.moveIsPossible(i)) {
+                continue;
+            }
+            
+            GameState copiedState = state.clone();
+            copiedState.makeMove(i);
+            int[] subResult = miniMaxAlphaBeta(copiedState, remainingDepth - 1, 
+                    alpha, beta, !isMax, deadline);
+            int score = subResult[1];
+            
+            // === ALPHA-BETA LOGIC ===
+            // Branch dropping pattern of Alpha-Beta is fairly simple:
+            //   Max nodes need to satisfy (score <= beta) equation
+            //   Min nodes need to satisfy (score 
+            //   If they don't, they will stop further iteration and return
+            // = A/B MAXIMIZER PART =
+            if (isMax) {
+                // Parent node is a Minimizer and if it this Maximizer's score
+                // is higher than parent node's beta, then there is no point
+                // evaluating this branch further
+                if (score > beta) {
+                    result[0] = i;
+                    result[1] = score;
+                    return result;
+                }
+                
+                alpha = Math.max(alpha, score);
+                
+                if (currentScore < score) {
+                    currentScore = score;
+                    currentMove = i;
+                }                
+            }
+            
+            // = A/B MINIMIZER PART =
+            if (!isMax) {
+                // Parent node is a Maximizer and if this Minimizer's score
+                // is less than parent node's alpha, then there is no point
+                // evaluating this branch further
+                if (score < alpha) {
+                    result[0] = i;
+                    result[1] = score;
+                    return result;
+                }
+                
+                // Update current values
+                beta = Math.min(beta, score);
+                
+                if (currentScore > score) {
+                    currentScore = score;
+                    currentMove = i;
+                }
+            }
+        }
+        
+        result[0] = currentMove;
+        result[1] = currentScore;
+        return result;
+    }
+    
+    /**
+     * Evaluate game score difference between AI and Opponent
+     * @param state Game state
+     * @return score difference
+     */
+    private int evalGameScore(GameState state)
+    {
+        if (this.player == 1) {
+            return state.getScore(1) - state.getScore(2);
+        } else {
+            return state.getScore(2) - state.getScore(1);
+        }
     }
     
     /**

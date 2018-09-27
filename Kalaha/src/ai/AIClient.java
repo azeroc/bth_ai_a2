@@ -217,7 +217,14 @@ public class AIClient implements Runnable
      */
     public int getMove(GameState currentBoard)
     {
-        int myMove = iddfsMiniMaxMove(currentBoard);
+        int myMove = 0;
+
+ 	// Thomas AI vs Alex AI
+        if (player==1)
+            myMove =iddfsMiniMaxMove(currentBoard); // Thomas
+        else
+            myMove = getNextMoveAlex_v1(currentBoard); // Alex
+ 
         return myMove;
     }
     
@@ -410,4 +417,114 @@ public class AIClient implements Runnable
     {
         return 1 + (int)(Math.random() * 6);
     }
+
+   //***********************************************************************
+    // Alex part
+    static final int MAX_LEVEL = 3;
+    
+    int cL=0; // current Depth
+    int lastBestMovie=0;
+    int lastScoreDiff=0;
+    
+    public boolean getRandomBoolean()
+    {
+        if ( Math.random() > 0.5)
+            return true;
+        else
+            return false;
+    }
+    
+    
+    private int ABprune(GameState state, int alpha, int betta)
+    {
+        int m=0, t=0;
+        
+        cL+=1;
+        if (cL>MAX_LEVEL)
+        {
+            cL-=1;
+            lastScoreDiff = evalGameScore(state);;
+            return lastScoreDiff;
+        }
+        
+        // End-game condition
+        if (state.gameEnded()) {
+            int endScoreDiff = evalGameScore(state);
+            lastScoreDiff = endScoreDiff;
+            
+              if (endScoreDiff < 0) { // AI looses (bias away from this)
+                return endScoreDiff + LOSS_BIAS;
+                
+            } else if (endScoreDiff > 0) { // AI wins (bias towards this)
+                return endScoreDiff + WIN_BIAS;
+                
+            } else { // Game draw (no bias added), diff always 0
+                return 0;
+            }
+            
+        }
+       
+        m = alpha;        
+        
+        for (int i = 1; i < 7; i++) 
+        {
+             // Skip child node if move to it isn't legal
+            if (!state.moveIsPossible(i)) {
+                continue;
+            }
+            if (cL==0)
+                lastBestMovie=i;
+            
+            GameState copiedState = state.clone();
+            copiedState.makeMove(i);
+            
+            t = -ABprune(copiedState, -betta, -m);
+            if (t > m)
+                m = t;     
+            
+            if (m >= betta) break;
+            
+        }
+        cL-=1;        
+        return m;
+    }
+    
+    /*
+    MiniMax with ABpruning
+    
+    */
+    int cnt=0;
+    private int getNextMoveAlex_v1(GameState state)
+    {
+        int m=-200, t=0;
+        cnt++;
+        addText("getNextMoveAlex_v1");
+        
+         while(true) { // Iterate max-depth from 1, 2, 3, ..., N
+            cL=-1;
+            t = -ABprune(state, -200, 200);
+            
+            // take the best step, but sometimes decide randomly on equal alternatives.
+            if (t>m || (t==m && getRandomBoolean()) )
+            {
+                m=t;                
+            }
+            
+            // Check for winning/losing to avoid max-depth iteration spam
+            if (t > WIN_BIAS || t < LOSS_BIAS) {
+                break;
+            }
+            
+            break;
+            
+         }
+         
+           addText("P" + this.player + "> MOVE: " + lastBestMovie + ", IDDFS DEPTH: " 
+                + cL + ", SCORE DIFF: " + lastScoreDiff + " step:" + cnt);
+       
+        return lastBestMovie;
+    }
+    
+ 
+
 }

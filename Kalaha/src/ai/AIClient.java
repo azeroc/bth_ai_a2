@@ -249,7 +249,12 @@ public class AIClient implements Runnable
             chosenMoveScoreDiff = resultScore;
             
             // Check for winning/losing to avoid max-depth iteration spam
-            if (chosenMoveScoreDiff > WIN_BIAS || chosenMoveScoreDiff < LOSS_BIAS) {
+            if (chosenMoveScoreDiff > WIN_BIAS) {
+                break;
+            }
+            
+            // Overflow condition
+            if (maxDepthIter == Integer.MAX_VALUE) {
                 break;
             }
         }
@@ -334,7 +339,7 @@ public class AIClient implements Runnable
             // === ALPHA-BETA LOGIC ===
             // Branch dropping pattern of Alpha-Beta is fairly simple:
             //   Max nodes need to satisfy (score <= beta) equation
-            //   Min nodes need to satisfy (score 
+            //   Min nodes need to satisfy (score >= alpha) equation
             //   If they don't, they will stop further iteration and return
             // = A/B MAXIMIZER PART =
             if (isMax) {

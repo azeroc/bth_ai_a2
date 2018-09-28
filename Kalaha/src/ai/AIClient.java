@@ -217,17 +217,17 @@ public class AIClient implements Runnable
      */
     public int getMove(GameState currentBoard)
     {
-        int myMove = 0;
-
- 	// Thomas AI vs Alex AI
-        if (player==1)
-            myMove =iddfsMiniMaxMove(currentBoard); // Thomas
-        else
-            myMove = getNextMoveAlex_v1(currentBoard); // Alex
- 
+        int myMove = iddfsMiniMaxMove(currentBoard);
         return myMove;
     }
     
+    /**
+     * IDDFS (Iterative Deepending Depth-First-Search) MiniMax method
+     * It will iterate through increasing max-depth and execute miniMaxAlphaBeta
+     * method, which recursively does MiniMax with Alpha-Beta optimization
+     * @param state Game state
+     * @return Best move
+     */
     public int iddfsMiniMaxMove(GameState state)
     {
         int maxDepthIter = 0;
@@ -271,6 +271,16 @@ public class AIClient implements Runnable
         return chosenMove;
     }
     
+    /**
+     * Recursive MiniMax with Alpha-Beta optimization
+     * @param state Game state
+     * @param remainingDepth Decreasing remaining depth variable, initially set by IDDFS iteration
+     * @param alpha Alpha value from parents (Integer.MIN_VALUE from IDDFS)
+     * @param beta Beta value from parents (Integer.MAX_VALUE from IDDFS)
+     * @param isMax Flag to determine whether this will be executed as Maximizer or Minimizer
+     * @param deadline IDDFS time deadline for when to cancel MiniMax search
+     * @return Integer array (size 3), [0]: best move, [1]: score diff for chosen move, [2]: time break flag
+     */
     public int[] miniMaxAlphaBeta(GameState state, int remainingDepth, int alpha, int beta, boolean isMax, long deadline)
     {
         long currentTime = System.currentTimeMillis();
@@ -419,7 +429,7 @@ public class AIClient implements Runnable
     }
 
    //***********************************************************************
-    // Alex part
+    // Alex testing part
     static final int MAX_LEVEL = 5;
     
     int cL=0; // current Depth
@@ -440,10 +450,10 @@ public class AIClient implements Runnable
         int m=0, t=0;
         
         cL+=1;
-        if (cL>MAX_LEVEL) // stop at this level
+        if (cL>MAX_LEVEL) // stop at Max level
         {
-            cL-=1; // level down
-            lastScoreDiff = evalGameScore(state);;
+            cL-=1; // up level
+            lastScoreDiff = evalGameScore(state);
             return lastScoreDiff;
         }
         
@@ -451,36 +461,37 @@ public class AIClient implements Runnable
         if (state.gameEnded()) {
             int endScoreDiff = evalGameScore(state);
             lastScoreDiff = endScoreDiff;
-           
-            return endScoreDiff;
+          
+            return lastScoreDiff;
+            
         }
        
         m = alpha;        
         
-        // canonic F2 from 
+        // conanic F2 form
         for (int i = 1; i < 7; i++) 
         {
              // Skip child node if move to it isn't legal
             if (!state.moveIsPossible(i)) {
                 continue;
             }
-            if (cL==0)
+            
+            if (cL==0) // return move on level 0
                 lastBestMovie=i;
             
             GameState copiedState = state.clone();
             copiedState.makeMove(i);
             
-            
-            // this is the same like ABprune(copiedState, betta, m); 
-            t = -ABprune(copiedState, -betta, -m); 
+            // this equals to ABprune(copiedState, betta, m);
+            t = -ABprune(copiedState, -betta, -m);
             if (t > m)
-                m = t;     
-            
-            if (m >= betta) break;
+                m = t;                 
+            if (m >= betta) 
+                break;
             
         }
-        cL-=1;    // level UP
-        return m; //
+        cL-=1;     // up level   
+        return m;
     }
     
     /*
@@ -493,11 +504,12 @@ public class AIClient implements Runnable
         int m=-200, t=0;
         cnt++;
         addText("getNextMoveAlex_v1");
+        
+        cL=-1;
+        t = -ABprune(state, -200, 200);
+            
                  
-         cL=-1; // -1 level
-         t = -ABprune(state, -200, 200);
-          
-          addText("P" + this.player + "> MOVE: " + lastBestMovie + ", IDDFS DEPTH: " 
+         addText("P" + this.player + "> MOVE: " + lastBestMovie + ", IDDFS DEPTH: " 
                 + cL + ", SCORE DIFF: " + lastScoreDiff + " step:" + cnt);
        
         return lastBestMovie;

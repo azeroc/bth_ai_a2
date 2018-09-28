@@ -420,7 +420,7 @@ public class AIClient implements Runnable
 
    //***********************************************************************
     // Alex part
-    static final int MAX_LEVEL = 3;
+    static final int MAX_LEVEL = 5;
     
     int cL=0; // current Depth
     int lastBestMovie=0;
@@ -440,9 +440,9 @@ public class AIClient implements Runnable
         int m=0, t=0;
         
         cL+=1;
-        if (cL>MAX_LEVEL)
+        if (cL>MAX_LEVEL) // stop at this level
         {
-            cL-=1;
+            cL-=1; // level down
             lastScoreDiff = evalGameScore(state);;
             return lastScoreDiff;
         }
@@ -451,21 +451,13 @@ public class AIClient implements Runnable
         if (state.gameEnded()) {
             int endScoreDiff = evalGameScore(state);
             lastScoreDiff = endScoreDiff;
-            
-              if (endScoreDiff < 0) { // AI looses (bias away from this)
-                return endScoreDiff + LOSS_BIAS;
-                
-            } else if (endScoreDiff > 0) { // AI wins (bias towards this)
-                return endScoreDiff + WIN_BIAS;
-                
-            } else { // Game draw (no bias added), diff always 0
-                return 0;
-            }
-            
+           
+            return endScoreDiff;
         }
        
         m = alpha;        
         
+        // canonic F2 from 
         for (int i = 1; i < 7; i++) 
         {
              // Skip child node if move to it isn't legal
@@ -478,15 +470,17 @@ public class AIClient implements Runnable
             GameState copiedState = state.clone();
             copiedState.makeMove(i);
             
-            t = -ABprune(copiedState, -betta, -m);
+            
+            // this is the same like ABprune(copiedState, betta, m); 
+            t = -ABprune(copiedState, -betta, -m); 
             if (t > m)
                 m = t;     
             
             if (m >= betta) break;
             
         }
-        cL-=1;        
-        return m;
+        cL-=1;    // level UP
+        return m; //
     }
     
     /*
@@ -499,27 +493,11 @@ public class AIClient implements Runnable
         int m=-200, t=0;
         cnt++;
         addText("getNextMoveAlex_v1");
-        
-         while(true) { // Iterate max-depth from 1, 2, 3, ..., N
-            cL=-1;
-            t = -ABprune(state, -200, 200);
-            
-            // take the best step, but sometimes decide randomly on equal alternatives.
-            if (t>m || (t==m && getRandomBoolean()) )
-            {
-                m=t;                
-            }
-            
-            // Check for winning/losing to avoid max-depth iteration spam
-            if (t > WIN_BIAS || t < LOSS_BIAS) {
-                break;
-            }
-            
-            break;
-            
-         }
-         
-           addText("P" + this.player + "> MOVE: " + lastBestMovie + ", IDDFS DEPTH: " 
+                 
+         cL=-1; // -1 level
+         t = -ABprune(state, -200, 200);
+          
+          addText("P" + this.player + "> MOVE: " + lastBestMovie + ", IDDFS DEPTH: " 
                 + cL + ", SCORE DIFF: " + lastScoreDiff + " step:" + cnt);
        
         return lastBestMovie;

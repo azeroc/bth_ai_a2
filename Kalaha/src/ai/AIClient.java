@@ -217,17 +217,17 @@ public class AIClient implements Runnable
      */
     public int getMove(GameState currentBoard)
     {
-        int myMove = 0;
-
- 	// Thomas AI vs Alex AI
-        if (player==1)
-            myMove =iddfsMiniMaxMove(currentBoard); // Thomas
-        else
-            myMove = getNextMoveAlex_v1(currentBoard); // Alex
- 
+        int myMove = iddfsMiniMaxMove(currentBoard);
         return myMove;
     }
     
+    /**
+     * IDDFS (Iterative Deepending Depth-First-Search) MiniMax method
+     * It will iterate through increasing max-depth and execute miniMaxAlphaBeta
+     * method, which recursively does MiniMax with Alpha-Beta optimization
+     * @param state Game state
+     * @return Best move
+     */
     public int iddfsMiniMaxMove(GameState state)
     {
         int maxDepthIter = 0;
@@ -271,6 +271,16 @@ public class AIClient implements Runnable
         return chosenMove;
     }
     
+    /**
+     * Recursive MiniMax with Alpha-Beta optimization
+     * @param state Game state
+     * @param remainingDepth Decreasing remaining depth variable, initially set by IDDFS iteration
+     * @param alpha Alpha value from parents (Integer.MIN_VALUE from IDDFS)
+     * @param beta Beta value from parents (Integer.MAX_VALUE from IDDFS)
+     * @param isMax Flag to determine whether this will be executed as Maximizer or Minimizer
+     * @param deadline IDDFS time deadline for when to cancel MiniMax search
+     * @return Integer array (size 3), [0]: best move, [1]: score diff for chosen move, [2]: time break flag
+     */
     public int[] miniMaxAlphaBeta(GameState state, int remainingDepth, int alpha, int beta, boolean isMax, long deadline)
     {
         long currentTime = System.currentTimeMillis();
@@ -419,7 +429,7 @@ public class AIClient implements Runnable
     }
 
    //***********************************************************************
-    // Alex part
+    // Alex testing part
     static final int MAX_LEVEL = 3;
     
     int cL=0; // current Depth

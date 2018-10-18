@@ -26,10 +26,10 @@ public class AIClient implements Runnable
     private boolean connected;
     
     // Constants for MiniMax
-    static final int LOSS_BIAS = -1000;
-    static final int WIN_BIAS = +1000;
+    static final boolean SCORE_DIFF_EVAL = true; // False: Use raw AI score, True: Use score diff between AI and opponent
+    static final int LOSS_BIAS = 100; // Amount of points subtracted from score if state looses game for AI (drag game as long as possible)
     static final int TIME_LIMIT_MS = 5000;
-    	
+    
     /**
      * Creates a new client.
      */
@@ -222,7 +222,7 @@ public class AIClient implements Runnable
     }
     
     /**
-     * IDDFS (Iterative Deepending Depth-First-Search) MiniMax method
+     * IDDFS (Iterative Deepening Depth-First-Search) MiniMax method
      * It will iterate through increasing max-depth and execute miniMaxAlphaBeta
      * method, which recursively does MiniMax with Alpha-Beta optimization
      * @param state Game state
@@ -245,6 +245,7 @@ public class AIClient implements Runnable
             int resultMove = result[0];
             int resultScore = result[1];
             int timeBreak = result[2];
+            int deepestRemainingDepth = result[3];
             
             // If we encounter time-break in this max-depth iter, 
             // then we will use previous max-depth iteration results
@@ -255,19 +256,16 @@ public class AIClient implements Runnable
             chosenMove = resultMove;
             chosenMoveScoreDiff = resultScore;
             
-            // Check for winning/losing to avoid max-depth iteration spam
-            if (chosenMoveScoreDiff > WIN_BIAS) {
+            // Have we reached the end in the tree? Check deepest remainingDepth reached
+            // ... must be 0 to continue iterating further to next max-depth
+            // ... otherwise it means that in this iteration we reached end of the decision tree
+            if (deepestRemainingDepth != 0) {
                 break;
-            }
-            
-            // Overflow condition
-            if (maxDepthIter == Integer.MAX_VALUE) {
-                break;
-            }
+            }            
         }
         
-        addText("P" + this.player + "> MOVE: " + chosenMove + ", IDDFS DEPTH: " 
-                + maxDepthIter + ", SCORE DIFF: " + chosenMoveScoreDiff);
+        addText("P" + this.player + "> MOVE: " + chosenMove + ", IDDFS MAX-DEPTH: " 
+                + maxDepthIter + ", SCORE EVAL: " + chosenMoveScoreDiff);
         return chosenMove;
     }
     
@@ -294,10 +292,14 @@ public class AIClient implements Runnable
         // [0]: -1
         // [1]: Game score difference
         // [2]: Flag for time break (0 - no time break happened, 1 - time break happened)
-        int[] result = new int[3];
+        // [3]: Deepest depth reached relative to remainingDepth
+        //      This will be used to terminate IDDFS if further max-depth increase
+        //      won't change anything
+        int[] result = new int[4];
         result[0] = -1;
         result[1] = 0;
         result[2] = 0;
+        result[3] = remainingDepth;
         
         // Time-break condition
         if (currentTime > deadline) {
@@ -309,15 +311,13 @@ public class AIClient implements Runnable
         if (state.gameEnded()) {
             int endScoreDiff = evalGameScore(state);
             
-            if (endScoreDiff < 0) { // AI looses (bias away from this)
+            if (endScoreDiff < 0) { // AI looses (bias away from this, drag game as long as possible)
                 result[0] = -1;
-                result[1] = endScoreDiff + LOSS_BIAS;
-                return result;
-            } else if (endScoreDiff > 0) { // AI wins (bias towards this)
-                result[0] = -1;
-                result[1] = endScoreDiff + WIN_BIAS;
+                result[1] = endScoreDiff - LOSS_BIAS;
                 return result;
             } else { // Game draw (no bias added), diff always 0
+                result[0] = -1;
+                result[1] = endScoreDiff;
                 return result;
             }
         }
@@ -352,6 +352,17 @@ public class AIClient implements Runnable
             int[] subResult = miniMaxAlphaBeta(copiedState, remainingDepth - 1, 
                     alpha, beta, !isMax, deadline);
             int score = subResult[1];
+            
+            // Update deepest depth reached
+            if (subResult[3] < result[3]) {
+                result[3] = subResult[3];
+            }
+            
+            // Another time-break check (propogate time break from deeper iterations)
+            if (subResult[2] == 1) {
+                result[2] = 1;
+                return result;
+            }
             
             // === ALPHA-BETA LOGIC ===
             // Branch dropping pattern of Alpha-Beta is fairly simple:
@@ -404,16 +415,24 @@ public class AIClient implements Runnable
     }
     
     /**
-     * Evaluate game score difference between AI and Opponent
+     * Evaluate score for AI
      * @param state Game state
      * @return score difference
      */
     private int evalGameScore(GameState state)
     {
-        if (this.player == 1) {
-            return state.getScore(1) - state.getScore(2);
+        if (SCORE_DIFF_EVAL) {
+            if (this.player == 1) {
+                return state.getScore(1) - state.getScore(2);
+            } else {
+                return state.getScore(2) - state.getScore(1);
+            }
         } else {
-            return state.getScore(2) - state.getScore(1);
+            if (this.player == 1) {
+                return state.getScore(1);
+            } else {
+                return state.getScore(2);
+            }
         }
     }
     
